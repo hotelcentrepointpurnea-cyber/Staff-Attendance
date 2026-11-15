@@ -1,101 +1,214 @@
+
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>অটোমেটিক স্টাফ ফেস হাজিরা সিস্টেম</title>
-    <!-- ফেস-এপিআই সিডিএন -->
+    <title>Hotel Staff Face Attendance System</title>
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <style>
-        body { font-family: 'SolaimanLipi', Arial, sans-serif; text-align: center; background: #f4f4f9; margin: 0; padding: 20px; }
-        .container { max-width: 550px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        video { width: 100%; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 0 auto; }
-        #status { font-size: 20px; font-weight: bold; margin-top: 15px; color: #007bff; min-height: 60px; }
-        .success { color: #28a745 !important; font-size: 22px; background: #e8f5e9; padding: 10px; border-radius: 8px; }
-        .scanning { color: #e65100 !important; }
+        body { font-family: Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 20px; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .nav-buttons { margin-bottom: 20px; }
+        .nav-buttons button { padding: 10px 15px; margin: 5px; font-size: 14px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: white; transition: 0.3s; }
+        .nav-buttons button:hover { background: #0056b3; }
+        .section { display: none; }
+        .section.active { display: block; }
+        video { width: 100%; max-width: 450px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 10px auto; }
+        #status { font-size: 18px; font-weight: bold; margin-top: 15px; color: #007bff; min-height: 50px; }
+        .success { color: #28a745 !important; background: #e8f5e9; padding: 10px; border-radius: 8px; font-size: 20px; }
+        input, button.action-btn { width: 100%; padding: 10px; margin: 8px 0; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button.action-btn { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button.action-btn:hover { background: #218838; }
+        table { width: 100%; margin-top: 15px; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; font-size: 14px; }
+        th { background: #007bff; color: white; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>হোটেল স্টাফ অটোমেটিক ফেস হাজিরা</h2>
-        <video id="video" autoplay muted playsinline></video>
-        <div id="status">ক্যামেরা চালু করা হচ্ছে...</div>
+        <h2>Hotel Staff Face Attendance</h2>
+        
+        <div class="nav-buttons">
+            <button onclick="switchTab('scanner')">📷 Attendance Scanner</button>
+            <button onclick="switchTab('register')">➕ Staff Registration</button>
+            <button onclick="switchTab('report')">📋 Attendance Report</button>
+        </div>
+
+        <!-- SECTION 1: SCANNER -->
+        <div id="scanner-section" class="section active">
+            <video id="video" autoplay muted playsinline></video>
+            <div id="status">Starting camera... Please wait.</div>
+        </div>
+
+        <!-- SECTION 2: REGISTRATION -->
+        <div id="register-section" class="section">
+            <h3>Register New Staff</h3>
+            <input type="text" id="staffName" placeholder="Enter Staff Full Name (e.g. Sujit Mandal)">
+            <input type="file" id="staffPhotoInput" accept="image/*">
+            <button class="action-btn" onclick="registerStaff()">💾 Save Staff</button>
+            <div id="register-status" style="font-weight: bold; margin-top: 10px;"></div>
+            <h4>Registered Staff List:</h4>
+            <ul id="staffListUI" style="text-align: left; padding-left: 20px;"></ul>
+        </div>
+
+        <!-- SECTION 3: REPORT -->
+        <div id="report-section" class="section">
+            <h3>Attendance Log</h3>
+            <button class="action-btn" style="background: #17a2b8;" onclick="downloadCSV()">📥 Download CSV Report</button>
+            <table id="reportTable">
+                <thead>
+                    <tr>
+                        <th>Staff Name</th>
+                        <th>Date & Time</th>
+                    </tr>
+                </thead>
+                <tbody id="reportTableBody">
+                    <!-- Dynamic Rows -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
         const video = document.getElementById('video');
         const statusText = document.getElementById('status');
-        const WEB_APP_URL = "আপনার_ওয়েব_অ্যাপ_লিংক_এখানে_দিন"; // গুগল শিটের ওয়েব অ্যাপ লিংক এখানে দেবেন
         
         let isModelLoaded = false;
         let faceMatcher = null;
-        let isLocked = false; // হাজিরা নেওয়ার পর কিছুক্ষণ লক রাখার জন্য যাতে বারবার কাউন্ট না হয়
+        let registeredStaffs = JSON.parse(localStorage.getItem('hotel_staffs') || '[]');
+        let attendanceLog = JSON.parse(localStorage.getItem('hotel_attendance') || '[]');
+        let isLocked = false;
 
-        // ক্যামেরা অন করার ফাংশন
+        function switchTab(tabName) {
+            document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+            if(tabName === 'scanner') document.getElementById('scanner-section').classList.add('active');
+            if(tabName === 'register') {
+                document.getElementById('register-section').classList.add('active');
+                renderStaffList();
+            }
+            if(tabName === 'report') {
+                document.getElementById('report-section').classList.add('active');
+                renderReportTable();
+            }
+        }
+
         async function startVideo() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
                 video.srcObject = stream;
-                statusText.innerText = "ক্যামেরা চালু হয়েছে! AI মডেল এবং স্টাফের ফেস ডাটা লোড হচ্ছে...";
+                statusText.innerText = "Camera started! Loading AI models...";
             } catch (err) {
-                console.error("ক্যামেরা ত্রুটি: ", err);
-                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি। ব্রাউজার সেটিংস চেক করুন।";
+                statusText.innerText = "Camera permission denied or not available.";
             }
         }
 
-        // AI মডেল এবং স্টাফদের ফেস লোড করার ফাংশন
-        async function loadModelsAndFaces() {
+        async function loadModels() {
             try {
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-                
-                statusText.innerText = "AI মডেল ডাউনলোড হচ্ছে...";
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmarkNet.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                 
-                statusText.innerText = "স্টাফদের ফেস ডাটা লোড করা হচ্ছে...";
-
-                // ==========================================
-                // এখানে আপনার স্টাফদের নাম এবং ImgBB বা ডাইরেক্ট ছবির লিংক দিন
-                // ==========================================
-                const labeledDescriptors = await Promise.all([
-                    loadStaffFace("সুজিত মন্ডল",https://drive.google.com/file/d/1C_A5ZYQNz1sPhlUzWtp894bf3xSfbIU3/view?usp=sharing"),]); // 👈 আপনার বা স্টাফের ছবির লিংক দিন
-                    loadStaffFace("অন্য স্টাফের নাম", "https://ibb.co/27gHYfpy.jpg") // 👈 প্রয়োজনমতো বাড়াতে পারেন
-                ]);
-
-                // ফেস ম্যাচার (টলারেন্স ০.৬ রাখা হয়েছে যাতে নিখুঁতভাবে ফেস ম্যাচ করে)
-                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
-                
                 isModelLoaded = true;
-                statusText.className = "scanning";
-                statusText.innerText = "সিস্টেম প্রস্তুত! ক্যামেরার সামনে এসে দাঁড়ান...";
-                
-                // মডেল লোড শেষ হলে অটোমেটিক রিয়েল-টাইম ডিটেকশন শুরু হবে
+                statusText.innerText = "AI Models Loaded! Rebuilding Face Database...";
+                await buildFaceMatcher();
                 startAutoDetection();
-
             } catch (error) {
-                console.error("লোডিং ত্রুটি: ", error);
-                statusText.innerText = "মডেল বা স্টাফের ছবি লোড করতে সমস্যা হয়েছে। ছবির লিংকগুলো চেক করুন।";
+                statusText.innerText = "Error loading AI models. Please check internet.";
             }
         }
 
-        // স্টাফের ছবি থেকে ফেস ফিচার রিড করার ফাংশন
-        async function loadStaffFace(name, imageUrl) {
-            const img = await faceapi.fetchImage(imageUrl);
-            const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-                .withFaceLandmarks()
-                .withFaceDescriptor();
+        async function buildFaceMatcher() {
+            if (registeredStaffs.length === 0) {
+                statusText.innerText = "No staff registered yet! Please go to 'Staff Registration'.";
+                faceMatcher = null;
+                return;
+            }
+
+            try {
+                const labeledDescriptors = await Promise.all(
+                    registeredStaffs.map(async staff => {
+                        const img = await faceapi.fetchImage(staff.image);
+                        const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+                            .withFaceLandmarks()
+                            .withFaceDescriptor();
+                        return detection ? new faceapi.LabeledFaceDescriptors(staff.name, [detection.descriptor]) : null;
+                    })
+                );
+
+                const validDescriptors = labeledDescriptors.filter(d => d !== null);
+                if(validDescriptors.length > 0) {
+                    faceMatcher = new faceapi.FaceMatcher(validDescriptors, 0.6);
+                    statusText.innerText = "System Ready! Stand in front of the camera.";
+                } else {
+                    statusText.innerText = "Could not detect face in registered photos. Re-register staff.";
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function registerStaff() {
+            const nameInput = document.getElementById('staffName');
+            const photoInput = document.getElementById('staffPhotoInput');
+            const regStatus = document.getElementById('register-status');
             
-            if (!detection) {
-                throw new Error(`${name} এর ছবিতে কোনো মুখ স্পষ্টভাবে পাওয়া যায়নি!`);
+            if(!nameInput.value || photoInput.files.length === 0) {
+                regStatus.style.color = "red";
+                regStatus.innerText = "Please enter name and select an image file!";
+                return;
             }
-            return new faceapi.LabeledFaceDescriptors(name, [detection.descriptor]);
+
+            regStatus.style.color = "#007bff";
+            regStatus.innerText = "Processing staff photo...";
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const imgDataUrl = event.target.result;
+                const img = await faceapi.fetchImage(imgDataUrl);
+                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if(!detection) {
+                    regStatus.style.color = "red";
+                    regStatus.innerText = "No face detected in the photo! Upload a clear front face photo.";
+                    return;
+                }
+
+                registeredStaffs.push({ name: nameInput.value, image: imgDataUrl });
+                localStorage.setItem('hotel_staffs', JSON.stringify(registeredStaffs));
+                
+                regStatus.style.color = "green";
+                regStatus.innerText = "Staff registered successfully!";
+                nameInput.value = "";
+                photoInput.value = "";
+                renderStaffList();
+                if(isModelLoaded) buildFaceMatcher();
+            }
+            reader.readAsDataURL(photoInput.files[0]);
         }
 
-        // রিয়েল-টাইম অটোমেটিক ফেস ডিটেকশন লুপ
+        function renderStaffList() {
+            const listUI = document.getElementById('staffListUI');
+            listUI.innerHTML = "";
+            registeredStaffs.forEach((staff, index) => {
+                let li = document.createElement('li');
+                li.innerHTML = `${staff.name} <button onclick="deleteStaff(${index})" style="color:red; margin-left:10px; cursor:pointer;">Delete</button>`;
+                listUI.appendChild(li);
+            });
+        }
+
+        function deleteStaff(index) {
+            registeredStaffs.splice(index, 1);
+            localStorage.setItem('hotel_staffs', JSON.stringify(registeredStaffs));
+            renderStaffList();
+            if(isModelLoaded) buildFaceMatcher();
+        }
+
         function startAutoDetection() {
-            // প্রতি ০.৫ সেকেন্ডে একবার ফেস স্ক্যান করবে (খুব দ্রুত কাজ করবে)
             setInterval(async () => {
                 if (!isModelLoaded || !faceMatcher || isLocked) return;
 
@@ -107,55 +220,72 @@
                     const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
 
                     if (bestMatch.label !== "unknown") {
-                        // মুখ মিলে গেছে!
                         let staffName = bestMatch.label;
                         confirmAttendance(staffName);
                     } else {
-                        // অচেনা মুখ হলে
-                        statusText.className = "scanning";
-                        statusText.innerText = "অচেনা মুখ... রেজিস্টার্ড স্টাফ সামনে আসুন।";
+                        statusText.style.color = "#e65100";
+                        statusText.innerText = "Unknown face... Not registered.";
                     }
                 } else {
-                    statusText.className = "scanning";
-                    statusText.innerText = "ক্যামেরার সামনে মুখ নিয়ে আসুন...";
+                    statusText.style.color = "#007bff";
+                    statusText.innerText = "Please stand in front of the camera...";
                 }
-            }, 500); 
+            }, 800);
         }
 
-        // হাজিরা কনফার্ম এবং ভয়েস বলার ফাংশন
         function confirmAttendance(name) {
-            isLocked = true; // বারবার হাজিরা নেওয়া সাময়িকভাবে বন্ধ রাখা হলো
+            isLocked = true;
             statusText.className = "success";
-            statusText.innerText = `ধন্যবাদ, ${name}! আপনার হাজিরা কনফার্ম হয়েছে।`;
+            statusText.innerText = `Thank you, ${name}! Attendance Confirmed.`;
 
-            // বাংলায় ভয়েস আউটপুট (অটোমেটিক কথা বলাবে)
+            // Hindi Voice Announcement
             if ('speechSynthesis' in window) {
-                const speechText = `ধন্যবাদ, ${name}, আপনার হাজিরা কনফার্ম হয়েছে।`;
+                const speechText = `Dhanyavad ${name}, aapki haziri confirm ho gayi hai.`;
                 const utterance = new SpeechSynthesisUtterance(speechText);
-                utterance.lang = 'bn-BD'; // বাংলা ভাষা সেট করা
-                utterance.rate = 0.9;     // কথা বলার গতি স্বাভাবিক রাখা
+                utterance.lang = 'hi-IN';
+                utterance.rate = 0.9;
                 window.speechSynthesis.speak(utterance);
             }
 
-            // যদি গুগল শিটে পাঠাতে চান, নিচের কোডের কমেন্ট (/* */) তুলে দিতে পারেন:
-            /*
-            fetch(WEB_APP_URL, {
-                method: 'POST',
-                body: JSON.stringify({ name: name, time: new Date().toLocaleString() })
-            }).then(res => console.log("Google Sheet Updated"));
-            */
+            // Save to log
+            let currentTime = new Date().toLocaleString();
+            attendanceLog.unshift({ name: name, time: currentTime });
+            localStorage.setItem('hotel_attendance', JSON.stringify(attendanceLog));
 
-            // ১৫ সেকেন্ড পর সিস্টেম আবার পরবর্তী স্টাফের জন্য রেডি হবে
             setTimeout(() => {
                 isLocked = false;
-                statusText.className = "scanning";
-                statusText.innerText = "সিস্টেম প্রস্তুত! পরবর্তী স্টাফ আসুন...";
-            }, 15000);
+                statusText.className = "";
+                statusText.style.color = "#007bff";
+                statusText.innerText = "System ready! Next staff please...";
+            }, 12000);
         }
 
-        // ব্রাউজারে ভিডিও চালু হওয়ার সাথে সাথেই পুরো সিস্টেম রান হবে
+        function renderReportTable() {
+            const tbody = document.getElementById('reportTableBody');
+            tbody.innerHTML = "";
+            attendanceLog.forEach(item => {
+                let tr = document.createElement('tr');
+                tr.innerHTML = `<td>${item.name}</td><td>${item.time}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function downloadCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,Staff Name,Date & Time\n";
+            attendanceLog.forEach(row => {
+                csvContent += `"${row.name}","${row.time}"\n`;
+            });
+            let encodedUri = encodeURI(csvContent);
+            let link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "attendance_report.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         video.addEventListener('play', () => {
-            loadModelsAndFaces();
+            loadModels();
         });
 
         startVideo();
