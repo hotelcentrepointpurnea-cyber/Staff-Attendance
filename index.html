@@ -28,7 +28,7 @@
 <body>
 
     <div class="container">
-        <h2>Hotel Staff Face Attendance</h2>
+        <h2>Hotel Centre Point Face Attendance</h2>
         
         <div class="nav-buttons">
             <button onclick="switchTab('scanner')">📷 Attendance Scanner</button>
@@ -75,8 +75,7 @@
     <script>
         const video = document.getElementById('video');
         const statusText = document.getElementById('status');
-        const WEB_APP_URL = "https://docs.google.com/spreadsheets/d/1V0gQsFwl-D1_8LQukpZWCfld1278iS9Lr4Q7Z6X6yg4/edit?usp=sharing"; // 👈 আপনার গুগল শিটের ওয়েব অ্যাপ লিংক এখানে বসাবেন
-        
+        const WEB_APP_URL = "https://docs.google.com/spreadsheets/d/1V0gQsFwl-D1_8LQukpZWCfld1278iS9Lr4Q7Z6X6yg4/edit?usp=sharing"; //         
         let isModelLoaded = false;
         let faceMatcher = null;
         let registeredStaffs = JSON.parse(localStorage.getItem('hotel_staffs') || '[]');
