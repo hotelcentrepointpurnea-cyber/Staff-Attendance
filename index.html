@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>হোটেল স্টাফ ফেস হাজিরা সিস্টেম</title>
+    <title>হোটেল স্টাফ ফেস রিকগনিশন হাজিরা সিস্টেম</title>
     <!-- ফেস-এপিআই সিডিএন -->
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <style>
@@ -12,12 +12,13 @@
         video { width: 100%; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 0 auto; }
         #status { font-size: 18px; font-weight: bold; margin-top: 15px; color: #007bff; min-height: 50px; }
         .success { color: #28a745 !important; font-size: 20px; }
+        .error { color: #dc3545 !important; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>স্টাফ হাজিরা সিস্টেম (ফেস স্ক্যানার)</h2>
+        <h2>হোটেল স্টাফ ফেস রিকগনিশন হাজিরা</h2>
         <video id="video" autoplay muted playsinline></video>
         <div id="status">ক্যামেরা চালু করা হচ্ছে...</div>
     </div>
@@ -25,97 +26,134 @@
     <script>
         const video = document.getElementById('video');
         const statusText = document.getElementById('status');
-        const WEB_APP_URL = "আপনার_ওয়েব_অ্যাপ_লিংক_এখানে_দিন"; // এখানে আপনার গুগল শিট বা ওয়েব অ্যাপের লিংক দেবেন
+        const WEB_APP_URL = "আপনার_ওয়েব_অ্যাপ_লিংক_এখানে_দিন"; // গুগল শিটের ওয়েব অ্যাপ লিংক
         
         let isModelLoaded = false;
-        let isAttendanceRecorded = false; // বারবার হাজিরা সাবমিট হওয়া রোধ করার জন্য
+        let faceMatcher = null;
+        let isAttendanceRecorded = false;
 
         // ক্যামেরা অন করার ফাংশন
         async function startVideo() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
                 video.srcObject = stream;
-                statusText.innerText = "ক্যামেরা চালু হয়েছে! AI মডেল লোড হচ্ছে, দয়া করে অপেক্ষা করুন...";
+                statusText.innerText = "ক্যামেরা চালু হয়েছে! AI মডেল এবং স্টাফের ফেস ডাটা লোড হচ্ছে...";
             } catch (err) {
                 console.error("ক্যামেরা ত্রুটি: ", err);
                 statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি। ব্রাউজার সেটিংস চেক করুন।";
             }
         }
 
-        // AI মডেল লোড করার ফাংশন (ব্যাকআপ পাথ সহ)
-        async function loadModels() {
+        // AI মডেল এবং স্টাফদের ফেস লোড করার ফাংশন
+        async function loadModelsAndFaces() {
             try {
-                // ভ্লাদম্যানডিক ফেস-এপিআই এর জন্য নির্ভরযোগ্য মডেল পাথ
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
                 
-                statusText.innerText = "ফেস ডিটেকশন মডেল ডাউনলোড হচ্ছে...";
+                statusText.innerText = "মডেল ডাউনলোড হচ্ছে...";
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmarkNet.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                 
+                statusText.innerText = "স্টাফদের ফেস ডাটা লোড করা হচ্ছে...";
+
+                // ==========================================
+                // এখানে আপনার স্টাফদের ছবির লিংক ও নাম দিন
+                // ==========================================
+                const labeledDescriptors = await Promise.all([
+                    loadStaffFace("রহিম ভাই", "https://i.ibb.co.com/example1.jpg"), // এখানে আপনার স্টাফের ছবির লিংক দিন
+                    loadStaffFace("করিম সাহেব", "https://i.ibb.co.com/example2.jpg")
+                ]);
+
+                // ফেস ম্যাচার তৈরি করা (যা ক্যামেরা মুখের সাথে ডাটাবেস মিলাবে)
+                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6); // 0.6 হলো ম্যাচিং টলারেন্স
+                
                 isModelLoaded = true;
-                statusText.innerText = "সিস্টেম প্রস্তুত! ক্যামেরার সামনে স্থির হয়ে দাঁড়ান।";
+                statusText.innerText = "সিস্টেম সম্পূর্ণ প্রস্তুত! ক্যামেরার সামনে দাঁড়ান।";
                 detectFaces();
+
             } catch (error) {
-                console.error("মডেল লোড ত্রুটি: ", error);
-                statusText.innerText = "মডেল লোড হতে সমস্যা হচ্ছে। ইন্টারনেট কানেকশন চেক করে পেজ রিফ্রেশ করুন।";
+                console.error("লোডিং ত্রুটি: ", error);
+                statusText.innerText = "মডেল বা স্টাফের ছবি লোড করতে সমস্যা হয়েছে। ছবিগুলোর সঠিক লিংক দিন।";
             }
         }
 
-        // মুখ স্ক্যান এবং শনাক্ত করার ফাংশন
+        // নির্দিষ্ট স্টাফের ছবি থেকে ফেস ফিচার বের করার ফাংশন
+        async function loadStaffFace(name, imageUrl) {
+            const img = await faceapi.fetchImage(imageUrl);
+            const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks()
+                .withFaceDescriptor();
+            
+            if (!detection) {
+                throw new Error(`${name} এর ছবিতে কোনো মুখ স্পষ্টভাবে পাওয়া যায়নি!`);
+            }
+            return new faceapi.LabeledFaceDescriptors(name, [detection.descriptor]);
+        }
+
+        // ক্যামেরা থেকে লাইভ মুখ স্ক্যান করে মিলানো
         function detectFaces() {
             setInterval(async () => {
-                if (!isModelLoaded || isAttendanceRecorded) return;
+                if (!isModelLoaded || !faceMatcher || isAttendanceRecorded) return;
 
-                // ফেস ডিটেক্ট করা (ডেস্ক্রিপ্টর সহ)
+                // লাইভ ভিডিও থেকে মুখ ডিটেক্ট করা এবং ডেস্ক্রিপ্টর বের করা
                 const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
                     .withFaceLandmarks()
                     .withFaceDescriptor();
 
                 if (detection) {
-                    statusText.innerText = "মুখ শনাক্ত করা হয়েছে! যাচাই করা হচ্ছে...";
-                    
-                    // এখানে আপনি আপনার স্টাফের নাম বা আইডি ফিক্স করতে পারেন বা ডাটাবেস চেক করতে পারেন
-                    // ডেমো হিসেবে ধরে নিচ্ছি একজন স্টাফ শনাক্ত হয়েছে:
-                    let staffName = "সুরজিৎ মন্ডল"; // অথবা ডাটাবেস বা আগের রেজিস্টার্ড ফেস থেকে নাম আসবে
-                    
-                    triggerAttendance(staffName, detection.descriptor);
+                    // ফেস ম্যাচারের মাধ্যমে চেক করা কার সাথে মিলছে
+                    const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+
+                    if (bestMatch.label !== "unknown") {
+                        // যদি স্টাফের সাথে মিলে যায়
+                        let staffName = bestMatch.label;
+                        triggerAttendance(staffName);
+                    } else {
+                        // যদি অচেনা মুখ হয়
+                        statusText.className = "error";
+                        statusText.innerText = "অচেনা মুখ! স্টাফ হিসেবে রেজিস্টার্ড নন।";
+                    }
+                } else {
+                    if(!isAttendanceRecorded) {
+                        statusText.className = "";
+                        statusText.innerText = "ক্যামেরার সামনে মুখ নিয়ে আসুন...";
+                    }
                 }
             }, 2000);
         }
 
-        // হাজিরা সফল হওয়ার পর বার্তা এবং গুগল শিটে ডাটা পাঠানোর প্রস্তুতি
-        function triggerAttendance(name, descriptor) {
+        // হাজিরা সফল হওয়ার পর কাজ
+        function triggerAttendance(name) {
             isAttendanceRecorded = true;
             statusText.className = "success";
             statusText.innerText = `ধন্যবাদ, ${name}! আপনার হাজিরা সফলভাবে রেকর্ড হয়ে গেছে।`;
 
-            // ভয়েস ফিডব্যাক (ব্রাউজারে কথা বলানোর জন্য)
+            // ভয়েস ফিডব্যাক (বাংলায় কথা বলাবে)
             if ('speechSynthesis' in window) {
                 const utterance = new SpeechSynthesisUtterance(`ধন্যবাদ, ${name}, আপনার হাজিরা হয়ে গেছে।`);
                 utterance.lang = 'bn-BD';
                 window.speechSynthesis.speak(utterance);
             }
 
-            // যদি গুগল শিটে পাঠাতে চান:
+            // গুগল শিটে পাঠানোর কোড (যদি ওয়েব অ্যাপ লিংক দেন)
             /*
             fetch(WEB_APP_URL, {
                 method: 'POST',
                 body: JSON.stringify({ name: name, time: new Date().toLocaleString() })
-            }).then(res => console.log("Sent to sheet"));
+            }).then(res => console.log("Attendance Sent"));
             */
 
-            // ১০ সেকেন্ড পর আবার নতুন হাজিরা নেওয়ার জন্য রিসেট করা
+            // ১৫ সেকেন্ড পর পরের স্টাফের জন্য আবার সিস্টেম রিসেট হবে
             setTimeout(() => {
                 isAttendanceRecorded = false;
                 statusText.className = "";
-                statusText.innerText = "সিস্টেম প্রস্তুত! পরবর্তী স্টাফ ক্যামেরার সামনে আসুন।";
-            }, 10000);
+                statusText.innerText = "সিস্টেম প্রস্তুত! পরবর্তী স্টাফ আসুন।";
+            }, 15000);
         }
 
-        // পেজ লোড হওয়ার সাথে সাথে ক্যামেরা ও মডেল লোড শুরু করা
+        // ভিডিও চালু হলে মডেল ও ফেস লোড শুরু হবে
         video.addEventListener('play', () => {
-            loadModels();
+            loadModelsAndFaces();
         });
 
         startVideo();
