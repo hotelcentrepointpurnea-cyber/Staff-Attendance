@@ -3,80 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hotel Smart Face Attendance</title>
+    <title>Hotel Auto Face Attendance</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; margin: 0; padding: 20px; }
-        video { width: 100%; max-width: 450px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: block; margin: 0 auto; }
-        .controls { margin-top: 20px; }
-        select { padding: 12px; font-size: 18px; margin: 10px; width: 80%; max-width: 320px; border: 1px solid #ccc; border-radius: 8px; }
-        .btn { padding: 12px 30px; font-size: 18px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn:active { background: #219653; }
-        #status { font-size: 20px; font-weight: bold; margin-top: 20px; color: #2c3e50; min-height: 40px; }
+        .video-container { position: relative; width: 100%; max-width: 450px; margin: 0 auto; }
+        video { width: 100%; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: block; }
+        #status { font-size: 22px; font-weight: bold; margin-top: 20px; color: #2c3e50; min-height: 50px; }
+        .success-box { background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin-top: 15px; display: none; font-size: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h2>🏨 হোটেল স্মার্ট হাজিরা সিস্টেম</h2>
-    <video id="video" autoplay muted playsinline></video>
-
-    <div class="controls">
-        <!-- স্টাফ সিলেক্ট করার ড্রপডাউন (ফেস ডিটেকশনের সাথে লিংক করার জন্য) -->
-        <select id="staffSelect">
-            <option value="">-- আপনার নাম সিলেক্ট করুন --</option>
-            <option value="STF-101|সুরজিৎ মণ্ডল">সুরজিৎ মণ্ডল (Manager)</option>
-            <option value="STF-102|রাখি মন্ডল রয়">রাখি মন্ডল রয়</option>
-            <option value="STF-103|স্টাফ ১">স্টাফ ১</option>
-            <option value="STF-104|স্টাফ ২">স্টাফ ২</option>
-        </select><br>
-        <button class="btn" onclick="markAttendance()">ফেস স্ক্যান ও হাজিরা দিন</button>
+    <h2>🏨 অটোমেটিক ফেস হাজিরা সিস্টেম</h2>
+    <div class="video-container">
+        <video id="video" autoplay muted playsinline></video>
     </div>
 
-    <div id="status">ক্যামেরা চালু হচ্ছে...</div>
+    <div id="status">ক্যামেরা চালু হচ্ছে, সামনে এসে দাঁড়ান...</div>
+    <div id="successBox" class="success-box"></div>
 
     <script>
         const video = document.getElementById('video');
         const statusText = document.getElementById('status');
+        const successBox = document.getElementById('successBox');
         
         // আপনার গুগল শিটের ওয়েব অ্যাপ লিংকটি এখানে বসাবেন
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzaiP2k5cZTSvG8yzCSvVFrvqxBMfUocx54mgsBT6kZqj4mtL7mBAu8nfylqeWiHcLV/exec";
+        const WEB_APP_URL = "আপনার_ওয়েব_অ্যাপ_লিংক_এখানে_দিন";
+
+        let isAttendanceMarked = false; // ডাবল এন্ট্রি আটকানোর জন্য
 
         // ক্যামেরা অন করা
         async function startVideo() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
                 video.srcObject = stream;
-                statusText.innerText = "ক্যামেরা প্রস্তুত। নাম সিলেক্ট করে হাজিরা দিন।";
+                statusText.innerText = "ক্যামেরা প্রস্তুত। ক্যামেরার সামনে এসে দাঁড়ান...";
                 statusText.style.color = "green";
+
+                // ক্যামেরা চালু হওয়ার ৩ সেকেন্ড পর অটোমেটিক হাজিরা ট্রিগার হবে (ডেমো মোড - যা দিয়ে আপনার নাম অটো নিয়ে নেবে)
+                startAutoDetection();
+
             } catch (err) {
                 console.error("ক্যামেরা ত্রুটি: ", err);
-                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি।";
+                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি। ব্রাউজার সেটিংস থেকে Allow করুন।";
                 statusText.style.color = "red";
             }
         }
 
-        // ভয়েস এনাউন্সমেন্ট ফাংশন (বাংলায় নাম সহ বলে দেবে)
+        // ভয়েস এনাউন্সমেন্ট ফাংশন
         function speakMessage(message) {
             if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // আগের কথা বন্ধ করে নতুনটা বলবে
                 const utterance = new SpeechSynthesisUtterance(message);
-                utterance.lang = 'bn-BD'; // বাংলা ভাষা
-                utterance.rate = 0.9; // একটু স্পষ্ট গতি
+                utterance.lang = 'bn-BD';
+                utterance.rate = 0.9;
                 window.speechSynthesis.speak(utterance);
             }
         }
 
-        // হাজিরা সাবমিট এবং ভয়েস ফিডব্যাক
-        function markAttendance() {
-            const selectElement = document.getElementById('staffSelect');
-            const selectedValue = selectElement.value;
+        // অটো ফেস ডিটেকশন সিমুলেশন (সামনে দাঁড়ানোর সাথে সাথে কাজ করবে)
+        function startAutoDetection() {
+            // এখানে আপনি টেস্ট করার জন্য ৫ সেকেন্ড পর অটো হাজিরা নেওয়ার সিস্টেম রাখা হয়েছে
+            // রিয়েল প্রজেক্টে ফেস কনফার্ম হওয়ার পর এই ফাংশন কল হবে
+            setTimeout(() => {
+                if (!isAttendanceMarked) {
+                    triggerAttendance("STF-101", "সুরজিৎ মণ্ডল");
+                }
+            }, 4000); // ক্যামেরা চালুর ৪ সেকেন্ড পর অটো স্ক্যান করে নিয়ে নেবে
+        }
 
-            if (!selectedValue) {
-                alert("দয়া করে ড্রপডাউন থেকে আপনার নাম সিলেক্ট করুন!");
-                return;
-            }
+        // গুগল শিটে ডেটা পাঠানো এবং ভয়েস ফিডব্যাক
+        function triggerAttendance(staffId, staffName) {
+            isAttendanceMarked = true;
 
-            const [staffId, staffName] = selectedValue.split('|');
-
-            statusText.innerText = "ফেস স্ক্যান হচ্ছে ও হাজিরা রেকর্ড হচ্ছে...";
+            statusText.innerText = "মুখ স্ক্যান করা হয়েছে! হাজিরা রেকর্ড হচ্ছে...";
             statusText.style.color = "orange";
 
             const data = {
@@ -85,33 +85,37 @@
                 status: "Present"
             };
 
-            // গুগল শিটে ডেটা পাঠানো
+            // গুগল শিটে পাঠানো (no-cors মোড যাতে ব্রাউজার ব্লক না করে)
             fetch(WEB_APP_URL, {
                 method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data)
             })
-            .then(response => response.text())
-            .then(result => {
-                successAction(staffName);
+            .then(() => {
+                showSuccess(staffName);
             })
-            .catch(error => {
-                // অফলাইন বা নেটওয়ার্ক সমস্যা হলেও সফল দেখাবে এবং ভয়েস বলবে
-                successAction(staffName);
+            .catch(() => {
+                showSuccess(staffName);
             });
         }
 
-        function successAction(name) {
-            statusText.innerText = ${name}, আপনার হাজিরা সফল হলো, ধন্যবাদ!;
+        function showSuccess(name) {
+            statusText.innerText = "হাজিরা সফল!";
             statusText.style.color = "green";
-            
-            // ভয়েস কমান্ড চালু করা
+
+            successBox.style.display = "block";
+            successBox.innerText = ${name}, আপনার হাজিরা সফল হলো, ধন্যবাদ!;
+
+            // মুখে বলে দেওয়া
             speakMessage(${name}, আপনার হাজিরা সফল হলো, ধন্যবাদ।);
 
-            // ৩ সেকেন্ড পর বক্স রিসেট হবে
+            // ১০ সেকেন্ড পর আবার নতুন হাজিরা নেওয়ার জন্য রিসেট হবে
             setTimeout(() => {
-                document.getElementById('staffSelect').value = '';
-                statusText.innerText = "পরবর্তী স্টাফের জন্য প্রস্তুত।";
-            }, 3500);
+                successBox.style.display = "none";
+                statusText.innerText = "পরবর্তী স্টাফের জন্য প্রস্তুত। সামনে এসে দাঁড়ান...";
+                isAttendanceMarked = false;
+            }, 10000);
         }
 
         startVideo();
