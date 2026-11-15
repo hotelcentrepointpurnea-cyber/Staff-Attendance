@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hotel Staff Face Attendance System</title>
+    <title>Hotel Centre Point Staff Face Attendance System</title>
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 20px; text-align: center; }
@@ -17,6 +16,7 @@
         video { width: 100%; max-width: 450px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 10px auto; }
         #status { font-size: 18px; font-weight: bold; margin-top: 15px; color: #007bff; min-height: 50px; }
         .success { color: #28a745 !important; background: #e8f5e9; padding: 10px; border-radius: 8px; font-size: 20px; }
+        .error-box { color: #dc3545 !important; background: #f8d7da; padding: 10px; border-radius: 8px; }
         input, button.action-btn { width: 100%; padding: 10px; margin: 8px 0; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
         button.action-btn { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
         button.action-btn:hover { background: #218838; }
@@ -33,7 +33,7 @@
         <div class="nav-buttons">
             <button onclick="switchTab('scanner')">📷 Attendance Scanner</button>
             <button onclick="switchTab('register')">➕ Staff Registration</button>
-            <button onclick="switchTab('report')">📋 Attendance Report</button>
+            <button onclick="switchTab('report')">📋 Local Report</button>
         </div>
 
         <!-- SECTION 1: SCANNER -->
@@ -55,13 +55,14 @@
 
         <!-- SECTION 3: REPORT -->
         <div id="report-section" class="section">
-            <h3>Attendance Log</h3>
+            <h3>Local Attendance Log</h3>
             <button class="action-btn" style="background: #17a2b8;" onclick="downloadCSV()">📥 Download CSV Report</button>
             <table id="reportTable">
                 <thead>
                     <tr>
                         <th>Staff Name</th>
                         <th>Date & Time</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody id="reportTableBody">
@@ -74,12 +75,23 @@
     <script>
         const video = document.getElementById('video');
         const statusText = document.getElementById('status');
+        const WEB_APP_URL = "https://docs.google.com/spreadsheets/d/1V0gQsFwl-D1_8LQukpZWCfld1278iS9Lr4Q7Z6X6yg4/edit?usp=sharing"; // 👈 আপনার গুগল শিটের ওয়েব অ্যাপ লিংক এখানে বসাবেন
         
         let isModelLoaded = false;
         let faceMatcher = null;
         let registeredStaffs = JSON.parse(localStorage.getItem('hotel_staffs') || '[]');
         let attendanceLog = JSON.parse(localStorage.getItem('hotel_attendance') || '[]');
         let isLocked = false;
+
+        function speakHindi(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // আগের ভয়েস বন্ধ করে নতুনটি বলবে
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'hi-IN';
+                utterance.rate = 0.95;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
 
         function switchTab(tabName) {
             document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
@@ -100,7 +112,8 @@
                 video.srcObject = stream;
                 statusText.innerText = "Camera started! Loading AI models...";
             } catch (err) {
-                statusText.innerText = "Camera permission denied or not available.";
+                statusText.innerText = "Camera permission denied.";
+                speakHindi("Kamera chalu karne mein samasya hai.");
             }
         }
 
@@ -112,17 +125,18 @@
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                 
                 isModelLoaded = true;
-                statusText.innerText = "AI Models Loaded! Rebuilding Face Database...";
+                statusText.innerText = "AI Models Loaded! Building Face Database...";
                 await buildFaceMatcher();
                 startAutoDetection();
             } catch (error) {
-                statusText.innerText = "Error loading AI models. Please check internet.";
+                statusText.innerText = "Error loading AI models. Check internet connection.";
+                speakHindi("Internet connection slow hai, page refresh karein.");
             }
         }
 
         async function buildFaceMatcher() {
             if (registeredStaffs.length === 0) {
-                statusText.innerText = "No staff registered yet! Please go to 'Staff Registration'.";
+                statusText.innerText = "No staff registered yet! Please register staff first.";
                 faceMatcher = null;
                 return;
             }
@@ -130,11 +144,18 @@
             try {
                 const labeledDescriptors = await Promise.all(
                     registeredStaffs.map(async staff => {
-                        const img = await faceapi.fetchImage(staff.image);
-                        const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-                            .withFaceLandmarks()
-                            .withFaceDescriptor();
-                        return detection ? new faceapi.LabeledFaceDescriptors(staff.name, [detection.descriptor]) : null;
+                        return new Promise((resolve) => {
+                            const img = new Image();
+                            img.crossOrigin = "anonymous";
+                            img.onload = async () => {
+                                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+                                    .withFaceLandmarks()
+                                    .withFaceDescriptor();
+                                resolve(detection ? new faceapi.LabeledFaceDescriptors(staff.name, [detection.descriptor]) : null);
+                            };
+                            img.onerror = () => resolve(null);
+                            img.src = staff.image;
+                        });
                     })
                 );
 
@@ -144,6 +165,7 @@
                     statusText.innerText = "System Ready! Stand in front of the camera.";
                 } else {
                     statusText.innerText = "Could not detect face in registered photos. Re-register staff.";
+                    speakHindi("Staff ki photo mein face detect nahi hua.");
                 }
             } catch (e) {
                 console.error(e);
@@ -167,26 +189,31 @@
             const reader = new FileReader();
             reader.onload = async function(event) {
                 const imgDataUrl = event.target.result;
-                const img = await faceapi.fetchImage(imgDataUrl);
-                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-                    .withFaceLandmarks()
-                    .withFaceDescriptor();
-
-                if(!detection) {
-                    regStatus.style.color = "red";
-                    regStatus.innerText = "No face detected in the photo! Upload a clear front face photo.";
-                    return;
-                }
-
-                registeredStaffs.push({ name: nameInput.value, image: imgDataUrl });
-                localStorage.setItem('hotel_staffs', JSON.stringify(registeredStaffs));
+                const img = new Image();
+                img.src = imgDataUrl;
                 
-                regStatus.style.color = "green";
-                regStatus.innerText = "Staff registered successfully!";
-                nameInput.value = "";
-                photoInput.value = "";
-                renderStaffList();
-                if(isModelLoaded) buildFaceMatcher();
+                img.onload = async function() {
+                    const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+                        .withFaceLandmarks()
+                        .withFaceDescriptor();
+
+                    if(!detection) {
+                        regStatus.style.color = "red";
+                        regStatus.innerText = "No face detected in the photo! Upload a clear front face photo.";
+                        speakHindi("Photo mein chehra nahi mila, saaf photo upload karein.");
+                        return;
+                    }
+
+                    registeredStaffs.push({ name: nameInput.value, image: imgDataUrl });
+                    localStorage.setItem('hotel_staffs', JSON.stringify(registeredStaffs));
+                    
+                    regStatus.style.color = "green";
+                    regStatus.innerText = "Staff registered successfully!";
+                    nameInput.value = "";
+                    photoInput.value = "";
+                    renderStaffList();
+                    if(isModelLoaded) buildFaceMatcher();
+                }
             }
             reader.readAsDataURL(photoInput.files[0]);
         }
@@ -223,14 +250,14 @@
                         let staffName = bestMatch.label;
                         confirmAttendance(staffName);
                     } else {
-                        statusText.style.color = "#e65100";
-                        statusText.innerText = "Unknown face... Not registered.";
+                        statusText.className = "error-box";
+                        statusText.innerText = "Unknown face... Face not matched!";
+                        speakHindi("Face match nahi hua, kripya dobara koshish karein.");
+                        isLocked = true;
+                        setTimeout(() => { isLocked = false; statusText.className = ""; }, 4000);
                     }
-                } else {
-                    statusText.style.color = "#007bff";
-                    statusText.innerText = "Please stand in front of the camera...";
                 }
-            }, 800);
+            }, 1000);
         }
 
         function confirmAttendance(name) {
@@ -239,25 +266,30 @@
             statusText.innerText = `Thank you, ${name}! Attendance Confirmed.`;
 
             // Hindi Voice Announcement
-            if ('speechSynthesis' in window) {
-                const speechText = `Dhanyavad ${name}, aapki haziri confirm ho gayi hai.`;
-                const utterance = new SpeechSynthesisUtterance(speechText);
-                utterance.lang = 'hi-IN';
-                utterance.rate = 0.9;
-                window.speechSynthesis.speak(utterance);
-            }
+            speakHindi(`Dhanyavad ${name}, aapki haziri confirm ho gayi hai.`);
 
-            // Save to log
             let currentTime = new Date().toLocaleString();
-            attendanceLog.unshift({ name: name, time: currentTime });
+            
+            // Save to Local Backup
+            attendanceLog.unshift({ name: name, time: currentTime, status: "Success" });
             localStorage.setItem('hotel_attendance', JSON.stringify(attendanceLog));
+
+            // Send to Google Sheet Server
+            if(WEB_APP_URL && WEB_APP_URL.startsWith("http")) {
+                fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, time: currentTime, status: "Present" })
+                }).catch(err => console.error("Sheet sync error:", err));
+            }
 
             setTimeout(() => {
                 isLocked = false;
                 statusText.className = "";
                 statusText.style.color = "#007bff";
                 statusText.innerText = "System ready! Next staff please...";
-            }, 12000);
+            }, 10000);
         }
 
         function renderReportTable() {
@@ -265,15 +297,15 @@
             tbody.innerHTML = "";
             attendanceLog.forEach(item => {
                 let tr = document.createElement('tr');
-                tr.innerHTML = `<td>${item.name}</td><td>${item.time}</td>`;
+                tr.innerHTML = `<td>${item.name}</td><td>${item.time}</td><td>${item.status}</td>`;
                 tbody.appendChild(tr);
             });
         }
 
         function downloadCSV() {
-            let csvContent = "data:text/csv;charset=utf-8,Staff Name,Date & Time\n";
+            let csvContent = "data:text/csv;charset=utf-8,Staff Name,Date & Time,Status\n";
             attendanceLog.forEach(row => {
-                csvContent += `"${row.name}","${row.time}"\n`;
+                csvContent += `"${row.name}","${row.time}","${row.status}"\n`;
             });
             let encodedUri = encodeURI(csvContent);
             let link = document.createElement("a");
