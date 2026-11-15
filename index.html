@@ -1,28 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hotel Staff Face Attendance</title>
+    <title>Hotel Staff Attendance</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; margin: 0; padding: 20px; }
-        video { width: 100%; max-width: 500px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 0 auto; }
-        #status { font-size: 20px; font-weight: bold; margin-top: 15px; color: #27ae60; }
-        .btn { margin-top: 20px; padding: 12px 25px; font-size: 18px; background: #2ecc71; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        video { width: 100%; max-width: 400px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 0 auto; }
+        .form-box { margin-top: 20px; }
+        input { padding: 12px; font-size: 16px; margin: 8px; width: 80%; max-width: 300px; border: 1px solid #ccc; border-radius: 5px; }
+        .btn { margin-top: 15px; padding: 12px 25px; font-size: 18px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .btn:active { background: #219653; }
+        #status { font-size: 18px; font-weight: bold; margin-top: 15px; color: #2c3e50; }
     </style>
 </head>
 <body>
 
-    <h2>স্টাফ হাজিরা সিস্টেম (ফেস স্ক্যানার)</h2>
+    <h2>স্টাফ হাজিরা সিস্টেম</h2>
     <video id="video" autoplay muted playsinline></video>
-    <div id="status">ক্যামেরা চালু হয়েছে! ক্যামেরার সামনে দাঁড়ান।</div>
 
-    <!-- সরাসরি হাজিরা দেওয়ার বাটন (টেস্টিং ও নিশ্চিতকরণের জন্য) -->
-    <button class="btn" onclick="manualAttendance()">হাজিরা নিশ্চিত করুন (Check-In)</button>
+    <div class="form-box">
+        <input type="text" id="staffId" placeholder="স্টাফ আইডি (যেমন: STF-101)" required><br>
+        <input type="text" id="staffName" placeholder="কর্মচারীর নাম (যেমন: সুরজিৎ মণ্ডল)" required><br>
+        <button class="btn" onclick="submitAttendance()">হাজিরা নিশ্চিত করুন (Check-In)</button>
+    </div>
+
+    <div id="status"></div>
 
     <script>
         const video = document.getElementById('video');
         const statusText = document.getElementById('status');
+        
+        // আপনার গুগল শিটের ওয়েব অ্যাপ লিংকটি এখানে বসাবেন
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbweaQQM_3t7uSezBHlLIOt5N5R7VbFyyZs33wbnD3Vv_IdPoKjRN_h5r4qpJFSmwZIX/exec";
 
         // ক্যামেরা অন করা
@@ -33,28 +42,36 @@
             } catch (err) {
                 console.error("ক্যামেরা ত্রুটি: ", err);
                 statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি।";
-                statusText.style.color = "red";
             }
         }
 
-        // গুগল শিটে হাজিরা পাঠানোর ফাংশন
-        function manualAttendance() {
+        // গুগল শিটে হাজিরা পাঠানো
+        function submitAttendance() {
+            const id = document.getElementById('staffId').value.trim();
+            const name = document.getElementById('staffName').value.trim();
+
+            if (!id || !name) {
+                alert("দয়া করে স্টাফ আইডি এবং নাম লিখুন!");
+                return;
+            }
+
             statusText.innerText = "হাজিরা রেকর্ড হচ্ছে, দয়া করে অপেক্ষা করুন...";
-            
+
             fetch(WEB_APP_URL, {
                 method: "POST",
                 mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
-                    staff_id: "STF-101", 
-                    staff_name: "সুরজিৎ মণ্ডল", 
+                    staff_id: id, 
+                    staff_name: name, 
                     status: "Present" 
                 })
             }).then(() => {
-                statusText.innerText = "ধন্যবাদ! হাজিরা সফলভাবে গুগল শিটে জমা হয়েছে।";
+                statusText.innerText = ধন্যবাদ, ${name}! হাজিরা সফলভাবে জমা হয়েছে।;
+                document.getElementById('staffId').value = '';
+                document.getElementById('staffName').value = '';
             }).catch(err => {
-                statusText.innerText = "হাজিরা পাঠাতে সমস্যা হয়েছে।";
-                statusText.style.color = "red";
+                statusText.innerText = "হাজিরা পাঠাতে সমস্যা হয়েছে। আবার চেষ্টা করুন।";
             });
         }
 
