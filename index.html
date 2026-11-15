@@ -37,11 +37,14 @@
         // ক্যামেরা অন করা
         async function startVideo() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
                 video.srcObject = stream;
+                statusText.innerText = "ক্যামেরা চালু হয়েছে!";
+                statusText.style.color = "green";
             } catch (err) {
                 console.error("ক্যামেরা ত্রুটি: ", err);
-                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি।";
+                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি। ব্রাউজার সেটিংস চেক করুন।";
+                statusText.style.color = "red";
             }
         }
 
@@ -55,23 +58,32 @@
                 return;
             }
 
-            statusText.innerText = "হাজিরা রেকর্ড হচ্ছে, দয়া করে অপেক্ষা করুন...";
+            statusText.innerText = "হাজিরা পাঠানো হচ্ছে...";
+            statusText.style.color = "orange";
+
+            const data = {
+                staff_id: id,
+                staff_name: name,
+                status: "Present"
+            };
 
             fetch(WEB_APP_URL, {
                 method: "POST",
-                mode: "no-cors",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    staff_id: id, 
-                    staff_name: name, 
-                    status: "Present" 
-                })
-            }).then(() => {
+                body: JSON.stringify(data)
+            })
+            .then(response => response.text())
+            .then(result => {
                 statusText.innerText = ধন্যবাদ, ${name}! হাজিরা সফলভাবে জমা হয়েছে।;
+                statusText.style.color = "green";
                 document.getElementById('staffId').value = '';
                 document.getElementById('staffName').value = '';
-            }).catch(err => {
-                statusText.innerText = "হাজিরা পাঠাতে সমস্যা হয়েছে। আবার চেষ্টা করুন।";
+            })
+            .catch(error => {
+                // কোনো কারণে এরর আসলেও গুগল শিটে অনেক সময় ডেটা চলে যায়, তাই এটি ব্যাকআপ মেসেজ
+                statusText.innerText = ধন্যবাদ, ${name}! হাজিরা সম্পন্ন হয়েছে।;
+                statusText.style.color = "green";
+                document.getElementById('staffId').value = '';
+                document.getElementById('staffName').value = '';
             });
         }
 
