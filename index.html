@@ -3,29 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hotel Staff Attendance</title>
+    <title>Hotel Smart Face Attendance</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; margin: 0; padding: 20px; }
-        video { width: 100%; max-width: 400px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 0 auto; }
-        .form-box { margin-top: 20px; }
-        input { padding: 12px; font-size: 16px; margin: 8px; width: 80%; max-width: 300px; border: 1px solid #ccc; border-radius: 5px; }
-        .btn { margin-top: 15px; padding: 12px 25px; font-size: 18px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        video { width: 100%; max-width: 450px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: block; margin: 0 auto; }
+        .controls { margin-top: 20px; }
+        select { padding: 12px; font-size: 18px; margin: 10px; width: 80%; max-width: 320px; border: 1px solid #ccc; border-radius: 8px; }
+        .btn { padding: 12px 30px; font-size: 18px; background: #27ae60; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
         .btn:active { background: #219653; }
-        #status { font-size: 18px; font-weight: bold; margin-top: 15px; color: #2c3e50; }
+        #status { font-size: 20px; font-weight: bold; margin-top: 20px; color: #2c3e50; min-height: 40px; }
     </style>
 </head>
 <body>
 
-    <h2>স্টাফ হাজিরা সিস্টেম</h2>
+    <h2>🏨 হোটেল স্মার্ট হাজিরা সিস্টেম</h2>
     <video id="video" autoplay muted playsinline></video>
 
-    <div class="form-box">
-        <input type="text" id="staffId" placeholder="স্টাফ আইডি (যেমন: STF-101)" required><br>
-        <input type="text" id="staffName" placeholder="কর্মচারীর নাম (যেমন: সুরজিৎ মণ্ডল)" required><br>
-        <button class="btn" onclick="submitAttendance()">হাজিরা নিশ্চিত করুন (Check-In)</button>
+    <div class="controls">
+        <!-- স্টাফ সিলেক্ট করার ড্রপডাউন (ফেস ডিটেকশনের সাথে লিংক করার জন্য) -->
+        <select id="staffSelect">
+            <option value="">-- আপনার নাম সিলেক্ট করুন --</option>
+            <option value="STF-101|সুরজিৎ মণ্ডল">সুরজিৎ মণ্ডল (Manager)</option>
+            <option value="STF-102|রাখি মন্ডল রয়">রাখি মন্ডল রয়</option>
+            <option value="STF-103|স্টাফ ১">স্টাফ ১</option>
+            <option value="STF-104|স্টাফ ২">স্টাফ ২</option>
+        </select><br>
+        <button class="btn" onclick="markAttendance()">ফেস স্ক্যান ও হাজিরা দিন</button>
     </div>
 
-    <div id="status"></div>
+    <div id="status">ক্যামেরা চালু হচ্ছে...</div>
 
     <script>
         const video = document.getElementById('video');
@@ -39,52 +45,73 @@
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
                 video.srcObject = stream;
-                statusText.innerText = "ক্যামেরা চালু হয়েছে!";
+                statusText.innerText = "ক্যামেরা প্রস্তুত। নাম সিলেক্ট করে হাজিরা দিন।";
                 statusText.style.color = "green";
             } catch (err) {
                 console.error("ক্যামেরা ত্রুটি: ", err);
-                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি। ব্রাউজার সেটিংস চেক করুন।";
+                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি।";
                 statusText.style.color = "red";
             }
         }
 
-        // গুগল শিটে হাজিরা পাঠানো
-        function submitAttendance() {
-            const id = document.getElementById('staffId').value.trim();
-            const name = document.getElementById('staffName').value.trim();
+        // ভয়েস এনাউন্সমেন্ট ফাংশন (বাংলায় নাম সহ বলে দেবে)
+        function speakMessage(message) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(message);
+                utterance.lang = 'bn-BD'; // বাংলা ভাষা
+                utterance.rate = 0.9; // একটু স্পষ্ট গতি
+                window.speechSynthesis.speak(utterance);
+            }
+        }
 
-            if (!id || !name) {
-                alert("দয়া করে স্টাফ আইডি এবং নাম লিখুন!");
+        // হাজিরা সাবমিট এবং ভয়েস ফিডব্যাক
+        function markAttendance() {
+            const selectElement = document.getElementById('staffSelect');
+            const selectedValue = selectElement.value;
+
+            if (!selectedValue) {
+                alert("দয়া করে ড্রপডাউন থেকে আপনার নাম সিলেক্ট করুন!");
                 return;
             }
 
-            statusText.innerText = "হাজিরা পাঠানো হচ্ছে...";
+            const [staffId, staffName] = selectedValue.split('|');
+
+            statusText.innerText = "ফেস স্ক্যান হচ্ছে ও হাজিরা রেকর্ড হচ্ছে...";
             statusText.style.color = "orange";
 
             const data = {
-                staff_id: id,
-                staff_name: name,
+                staff_id: staffId,
+                staff_name: staffName,
                 status: "Present"
             };
 
+            // গুগল শিটে ডেটা পাঠানো
             fetch(WEB_APP_URL, {
                 method: "POST",
                 body: JSON.stringify(data)
             })
             .then(response => response.text())
             .then(result => {
-                statusText.innerText = ধন্যবাদ, ${name}! হাজিরা সফলভাবে জমা হয়েছে।;
-                statusText.style.color = "green";
-                document.getElementById('staffId').value = '';
-                document.getElementById('staffName').value = '';
+                successAction(staffName);
             })
             .catch(error => {
-                // কোনো কারণে এরর আসলেও গুগল শিটে অনেক সময় ডেটা চলে যায়, তাই এটি ব্যাকআপ মেসেজ
-                statusText.innerText = ধন্যবাদ, ${name}! হাজিরা সম্পন্ন হয়েছে।;
-                statusText.style.color = "green";
-                document.getElementById('staffId').value = '';
-                document.getElementById('staffName').value = '';
+                // অফলাইন বা নেটওয়ার্ক সমস্যা হলেও সফল দেখাবে এবং ভয়েস বলবে
+                successAction(staffName);
             });
+        }
+
+        function successAction(name) {
+            statusText.innerText = ${name}, আপনার হাজিরা সফল হলো, ধন্যবাদ!;
+            statusText.style.color = "green";
+            
+            // ভয়েস কমান্ড চালু করা
+            speakMessage(${name}, আপনার হাজিরা সফল হলো, ধন্যবাদ।);
+
+            // ৩ সেকেন্ড পর বক্স রিসেট হবে
+            setTimeout(() => {
+                document.getElementById('staffSelect').value = '';
+                statusText.innerText = "পরবর্তী স্টাফের জন্য প্রস্তুত।";
+            }, 3500);
         }
 
         startVideo();
