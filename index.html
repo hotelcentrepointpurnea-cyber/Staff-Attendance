@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HOTEL CENTRE POINT</title>
+    <title>অটোমেটিক স্টাফ ফেস হাজিরা সিস্টেম</title>
     <!-- ফেস-এপিআই সিডিএন -->
     <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <style>
         body { font-family: 'SolaimanLipi', Arial, sans-serif; text-align: center; background: #f4f4f9; margin: 0; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .container { max-width: 550px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         video { width: 100%; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 0 auto; }
-        #status { font-size: 18px; font-weight: bold; margin-top: 15px; color: #007bff; min-height: 50px; }
-        .success { color: #28a745 !important; font-size: 20px; }
-        .error { color: #dc3545 !important; }
+        #status { font-size: 20px; font-weight: bold; margin-top: 15px; color: #007bff; min-height: 60px; }
+        .success { color: #28a745 !important; font-size: 22px; background: #e8f5e9; padding: 10px; border-radius: 8px; }
+        .scanning { color: #e65100 !important; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>হHOTEL CENTRE POINT</h2>
+        <h2>হোটেল স্টাফ অটোমেটিক ফেস হাজিরা</h2>
         <video id="video" autoplay muted playsinline></video>
         <div id="status">ক্যামেরা চালু করা হচ্ছে...</div>
     </div>
@@ -26,11 +26,11 @@
     <script>
         const video = document.getElementById('video');
         const statusText = document.getElementById('status');
-        const WEB_APP_URL = "আপনার_ওয়েব_অ্যাপ_লিংক_এখানে_দিন"; // গুগল শিটের ওয়েব অ্যাপ লিংক
+        const WEB_APP_URL = "আপনার_ওয়েব_অ্যাপ_লিংক_এখানে_দিন"; // গুগল শিটের ওয়েব অ্যাপ লিংক এখানে দেবেন
         
         let isModelLoaded = false;
         let faceMatcher = null;
-        let isAttendanceRecorded = false;
+        let isLocked = false; // হাজিরা নেওয়ার পর কিছুক্ষণ লক রাখার জন্য যাতে বারবার কাউন্ট না হয়
 
         // ক্যামেরা অন করার ফাংশন
         async function startVideo() {
@@ -49,7 +49,7 @@
             try {
                 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
                 
-                statusText.innerText = "মডেল ডাউনলোড হচ্ছে...";
+                statusText.innerText = "AI মডেল ডাউনলোড হচ্ছে...";
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmarkNet.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
@@ -57,27 +57,30 @@
                 statusText.innerText = "স্টাফদের ফেস ডাটা লোড করা হচ্ছে...";
 
                 // ==========================================
-                // এখানে আপনার স্টাফদের ছবির লিংক ও নাম দিন
+                // এখানে আপনার স্টাফদের নাম এবং ImgBB বা ডাইরেক্ট ছবির লিংক দিন
                 // ==========================================
                 const labeledDescriptors = await Promise.all([
-                
-                    loadStaffFace("করিম সাহেব", "https://ibb.co/27gHYfpy")
+                    loadStaffFace("সুজিত মন্ডল", "https://i.ibb.co.com/example/sujit.jpg"), // 👈 আপনার বা স্টাফের ছবির লিংক দিন
+                    loadStaffFace("অন্য স্টাফের নাম", "https://ibb.co/27gHYfpy") // 👈 প্রয়োজনমতো বাড়াতে পারেন
                 ]);
 
-                // ফেস ম্যাচার তৈরি করা (যা ক্যামেরা মুখের সাথে ডাটাবেস মিলাবে)
-                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6); // 0.6 হলো ম্যাচিং টলারেন্স
+                // ফেস ম্যাচার (টলারেন্স ০.৬ রাখা হয়েছে যাতে নিখুঁতভাবে ফেস ম্যাচ করে)
+                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
                 
                 isModelLoaded = true;
-                statusText.innerText = "সিস্টেম সম্পূর্ণ প্রস্তুত! ক্যামেরার সামনে দাঁড়ান।";
-                detectFaces();
+                statusText.className = "scanning";
+                statusText.innerText = "সিস্টেম প্রস্তুত! ক্যামেরার সামনে এসে দাঁড়ান...";
+                
+                // মডেল লোড শেষ হলে অটোমেটিক রিয়েল-টাইম ডিটেকশন শুরু হবে
+                startAutoDetection();
 
             } catch (error) {
                 console.error("লোডিং ত্রুটি: ", error);
-                statusText.innerText = "মডেল বা স্টাফের ছবি লোড করতে সমস্যা হয়েছে। ছবিগুলোর সঠিক লিংক দিন।";
+                statusText.innerText = "মডেল বা স্টাফের ছবি লোড করতে সমস্যা হয়েছে। ছবির লিংকগুলো চেক করুন।";
             }
         }
 
-        // নির্দিষ্ট স্টাফের ছবি থেকে ফেস ফিচার বের করার ফাংশন
+        // স্টাফের ছবি থেকে ফেস ফিচার রিড করার ফাংশন
         async function loadStaffFace(name, imageUrl) {
             const img = await faceapi.fetchImage(imageUrl);
             const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
@@ -90,68 +93,67 @@
             return new faceapi.LabeledFaceDescriptors(name, [detection.descriptor]);
         }
 
-        // ক্যামেরা থেকে লাইভ মুখ স্ক্যান করে মিলানো
-        function detectFaces() {
+        // রিয়েল-টাইম অটোমেটিক ফেস ডিটেকশন লুপ
+        function startAutoDetection() {
+            // প্রতি ০.৫ সেকেন্ডে একবার ফেস স্ক্যান করবে (খুব দ্রুত কাজ করবে)
             setInterval(async () => {
-                if (!isModelLoaded || !faceMatcher || isAttendanceRecorded) return;
+                if (!isModelLoaded || !faceMatcher || isLocked) return;
 
-                // লাইভ ভিডিও থেকে মুখ ডিটেক্ট করা এবং ডেস্ক্রিপ্টর বের করা
                 const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
                     .withFaceLandmarks()
                     .withFaceDescriptor();
 
                 if (detection) {
-                    // ফেস ম্যাচারের মাধ্যমে চেক করা কার সাথে মিলছে
                     const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
 
                     if (bestMatch.label !== "unknown") {
-                        // যদি স্টাফের সাথে মিলে যায়
+                        // মুখ মিলে গেছে!
                         let staffName = bestMatch.label;
-                        triggerAttendance(staffName);
+                        confirmAttendance(staffName);
                     } else {
-                        // যদি অচেনা মুখ হয়
-                        statusText.className = "error";
-                        statusText.innerText = "অচেনা মুখ! স্টাফ হিসেবে রেজিস্টার্ড নন।";
+                        // অচেনা মুখ হলে
+                        statusText.className = "scanning";
+                        statusText.innerText = "অচেনা মুখ... রেজিস্টার্ড স্টাফ সামনে আসুন।";
                     }
                 } else {
-                    if(!isAttendanceRecorded) {
-                        statusText.className = "";
-                        statusText.innerText = "ক্যামেরার সামনে মুখ নিয়ে আসুন...";
-                    }
+                    statusText.className = "scanning";
+                    statusText.innerText = "ক্যামেরার সামনে মুখ নিয়ে আসুন...";
                 }
-            }, 2000);
+            }, 500); 
         }
 
-        // হাজিরা সফল হওয়ার পর কাজ
-        function triggerAttendance(name) {
-            isAttendanceRecorded = true;
+        // হাজিরা কনফার্ম এবং ভয়েস বলার ফাংশন
+        function confirmAttendance(name) {
+            isLocked = true; // বারবার হাজিরা নেওয়া সাময়িকভাবে বন্ধ রাখা হলো
             statusText.className = "success";
-            statusText.innerText = `ধন্যবাদ, ${name}! আপনার হাজিরা সফলভাবে রেকর্ড হয়ে গেছে।`;
+            statusText.innerText = `ধন্যবাদ, ${name}! আপনার হাজিরা কনফার্ম হয়েছে।`;
 
-            // ভয়েস ফিডব্যাক (বাংলায় কথা বলাবে)
+            // বাংলায় ভয়েস আউটপুট (অটোমেটিক কথা বলাবে)
             if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(`ধন্যবাদ, ${name}, আপনার হাজিরা হয়ে গেছে।`);
-                utterance.lang = 'bn-BD';
+                const speechText = `ধন্যবাদ, ${name}, আপনার হাজিরা কনফার্ম হয়েছে।`;
+                const utterance = new SpeechSynthesisUtterance(speechText);
+                utterance.lang = 'bn-BD'; // বাংলা ভাষা সেট করা
+                utterance.rate = 0.9;     // কথা বলার গতি স্বাভাবিক রাখা
                 window.speechSynthesis.speak(utterance);
             }
 
-            // গুগল শিটে পাঠানোর কোড (যদি ওয়েব অ্যাপ লিংক দেন)
+            // যদি গুগল শিটে পাঠাতে চান, নিচের কোডের কমেন্ট (/* */) তুলে দিতে পারেন:
             /*
             fetch(WEB_APP_URL, {
                 method: 'POST',
                 body: JSON.stringify({ name: name, time: new Date().toLocaleString() })
-            }).then(res => console.log("Attendance Sent"));
+            }).then(res => console.log("Google Sheet Updated"));
             */
 
-            // ১৫ সেকেন্ড পর পরের স্টাফের জন্য আবার সিস্টেম রিসেট হবে
+            // ১৫ সেকেন্ড পর সিস্টেম আবার পরবর্তী স্টাফের জন্য রেডি হবে
             setTimeout(() => {
-                isAttendanceRecorded = false;
-                statusText.className = "";
-                statusText.innerText = "সিস্টেম প্রস্তুত! পরবর্তী স্টাফ আসুন।";
+                isLocked = false;
+                statusText.className = "scanning";
+                statusText.innerText = "সিস্টেম প্রস্তুত! পরবর্তী স্টাফ আসুন...";
             }, 15000);
         }
 
-        // ভিডিও চালু হলে মডেল ও ফেস লোড শুরু হবে
+        // ব্রাউজারে ভিডিও চালু হওয়ার সাথে সাথেই পুরো সিস্টেম রান হবে
         video.addEventListener('play', () => {
             loadModelsAndFaces();
         });
