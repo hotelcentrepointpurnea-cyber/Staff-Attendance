@@ -4,65 +4,60 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hotel Staff Face Attendance</title>
-    <!-- লোকাল বা সিডিএন থেকে ফেস-এপিআই লোড করা -->
-    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; margin: 0; padding: 20px; }
         video { width: 100%; max-width: 500px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: block; margin: 0 auto; }
-        #status { font-size: 20px; font-weight: bold; margin-top: 15px; color: #333; }
+        #status { font-size: 20px; font-weight: bold; margin-top: 15px; color: #27ae60; }
+        .btn { margin-top: 20px; padding: 12px 25px; font-size: 18px; background: #2ecc71; color: white; border: none; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <h2>স্টাফ হাজিরা সিস্টেম (ফেস স্ক্যানার)</h2>
     <video id="video" autoplay muted playsinline></video>
-    <div id="status">ক্যামেরা চালু করা হচ্ছে...</div>
+    <div id="status">ক্যামেরা চালু হয়েছে! ক্যামেরার সামনে দাঁড়ান।</div>
+
+    <!-- সরাসরি হাজিরা দেওয়ার বাটন (টেস্টিং ও নিশ্চিতকরণের জন্য) -->
+    <button class="btn" onclick="manualAttendance()">হাজিরা নিশ্চিত করুন (Check-In)</button>
 
     <script>
         const video = document.getElementById('video');
         const statusText = document.getElementById('status');
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbweaQQM_3t7uSezBHlLIOt5N5R7VbFyyZs33wbnD3Vv_IdPoKjRN_h5r4qpJFSmwZIX/exec";
 
-        // ক্যামেরা অন করার ফাংশন
+        // ক্যামেরা অন করা
         async function startVideo() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
                 video.srcObject = stream;
-                statusText.innerText = "ক্যামেরা চালু হয়েছে! AI মডেল লোড হচ্ছে...";
-                loadModels();
             } catch (err) {
                 console.error("ক্যামেরা ত্রুটি: ", err);
-                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি। ব্রাউজার সেটিংস চেক করুন।";
+                statusText.innerText = "ক্যামেরা পারমিশন পাওয়া যায়নি।";
+                statusText.style.color = "red";
             }
         }
 
-        // AI মডেল লোড করার ফাংশন
-        async function loadModels() {
-            try {
-                const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceLandmarkNet.loadFromUri(MODEL_URL);
-                
-                statusText.innerText = "সিস্টেম প্রস্তুত! ক্যামেরার সামনে দাঁড়ান।";
-                detectFaces();
-            } catch (error) {
-                console.error("মডেল লোড ত্রুটি: ", error);
-                statusText.innerText = "ইন্টারনেট কানেকশন স্লো, পেজটি আবার রিফ্রেশ করুন।";
-            }
+        // গুগল শিটে হাজিরা পাঠানোর ফাংশন
+        function manualAttendance() {
+            statusText.innerText = "হাজিরা রেকর্ড হচ্ছে, দয়া করে অপেক্ষা করুন...";
+            
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    staff_id: "STF-101", 
+                    staff_name: "সুরজিৎ মণ্ডল", 
+                    status: "Present" 
+                })
+            }).then(() => {
+                statusText.innerText = "ধন্যবাদ! হাজিরা সফলভাবে গুগল শিটে জমা হয়েছে।";
+            }).catch(err => {
+                statusText.innerText = "হাজিরা পাঠাতে সমস্যা হয়েছে।";
+                statusText.style.color = "red";
+            });
         }
 
-        // মুখ স্ক্যান করার ফাংশন
-        function detectFaces() {
-            setInterval(async () => {
-                const detections = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions());
-                if (detections) {
-                    statusText.innerText = "মুখ শনাক্ত করা হয়েছে! হাজিরা রেকর্ড হচ্ছে...";
-                    // এখানে হাজিরা পাঠানোর ফাংশন কল হবে
-                }
-            }, 3000);
-        }
-
-        // পেজ লোড হওয়ার সাথে সাথে ক্যামেরা চালু করা
         startVideo();
     </script>
 </body>
